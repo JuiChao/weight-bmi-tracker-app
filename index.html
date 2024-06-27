@@ -3,206 +3,268 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>每日体重记录</title>
+    <title>体重和BMI追踪</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.0/chart.min.js"></script>
     <style>
+        :root {
+            --primary-color: #4a90e2;
+            --secondary-color: #f5a623;
+            --background-color: #f0f4f8;
+            --card-background: #ffffff;
+            --text-color: #333333;
+        }
         body {
-            font-family: Arial, sans-serif;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             margin: 0;
             padding: 20px;
-            background-color: #f0f0f0;
+            background-color: var(--background-color);
+            color: var(--text-color);
         }
         .container {
-            max-width: 600px;
+            max-width: 800px;
             margin: 0 auto;
-            background-color: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            background-color: var(--card-background);
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         }
         h1 {
             text-align: center;
-            color: #333;
+            color: var(--primary-color);
+            margin-bottom: 30px;
         }
-        form {
+        .form-group {
             margin-bottom: 20px;
         }
         input, button {
             width: 100%;
-            padding: 10px;
+            padding: 12px;
             margin-bottom: 10px;
             border: 1px solid #ddd;
-            border-radius: 4px;
+            border-radius: 6px;
             box-sizing: border-box;
+            font-size: 16px;
         }
         button {
-            background-color: #4CAF50;
+            background-color: var(--primary-color);
             color: white;
             border: none;
             cursor: pointer;
+            transition: background-color 0.3s;
         }
         button:hover {
-            background-color: #45a049;
+            background-color: #3a7bc8;
         }
-        #weightChart {
-            margin-top: 20px;
+        .chart-container {
+            margin-top: 30px;
         }
         .unit-toggle {
             display: flex;
             justify-content: center;
-            margin-bottom: 10px;
+            margin-bottom: 20px;
         }
         .unit-toggle button {
             width: auto;
-            padding: 5px 10px;
+            padding: 10px 20px;
             margin: 0 5px;
+            background-color: var(--card-background);
+            color: var(--primary-color);
+            border: 1px solid var(--primary-color);
         }
-        .active {
-            background-color: #45a049;
+        .unit-toggle button.active {
+            background-color: var(--primary-color);
+            color: white;
         }
         #deleteButton {
-            display: none;
-            margin-top: 10px;
-            background-color: #f44336;
+            background-color: #e74c3c;
+            margin-top: 20px;
         }
         #deleteButton:hover {
-            background-color: #d32f2f;
+            background-color: #c0392b;
         }
+        .bmi-range {
+            text-align: center;
+            margin-top: 20px;
+            font-weight: bold;
+            color: var(--secondary-color);
+        }
+        .height-display {
+            text-align: center;
+            font-size: 18px;
+            margin-bottom: 20px;
+            color: var(--primary-color);
+        }
+        #editHeightBtn {
+            width: auto;
+            padding: 5px 10px;
+            background-color: var(--secondary-color);
+            margin-left: 10px;
+        }
+        .hidden { display: none; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>每日体重记录</h1>
-        <div class="unit-toggle">
-            <button id="jinToggle" class="active">斤</button>
-            <button id="kgToggle">公斤 (kg)</button>
+        <h1>体重和BMI追踪</h1>
+        
+        <div id="heightSetup" class="hidden">
+            <h2>首次使用 - 请输入您的身高</h2>
+            <div class="form-group">
+                <input type="number" id="initialHeight" step="0.1" placeholder="输入身高 (厘米)" required>
+                <button id="confirmHeight">确认</button>
+            </div>
         </div>
-        <form id="weightForm">
-            <input type="date" id="date" required>
-            <input type="number" id="weight" step="0.1" placeholder="输入体重 (斤)" required>
-            <button type="submit">记录体重</button>
-        </form>
-        <canvas id="weightChart"></canvas>
-        <button id="deleteButton">删除选中的数据点</button>
+
+        <div id="mainContent" class="hidden">
+            <div class="height-display">
+                当前身高: <span id="currentHeight"></span> 厘米
+                <button id="editHeightBtn">编辑</button>
+            </div>
+            
+            <div class="unit-toggle">
+                <button id="jinToggle" class="active">斤</button>
+                <button id="kgToggle">公斤 (kg)</button>
+            </div>
+            
+            <div class="form-group">
+                <input type="date" id="date" required>
+                <input type="number" id="weight" step="0.1" placeholder="输入体重 (斤)" required>
+                <button id="recordWeight">记录数据</button>
+            </div>
+            
+            <div class="chart-container">
+                <canvas id="weightChart"></canvas>
+                <canvas id="bmiChart"></canvas>
+                <div class="bmi-range">BMI值正常范围：18.5 ~ 23.9</div>
+            </div>
+            
+            <button id="deleteButton" class="hidden">删除选中的数据点</button>
+        </div>
     </div>
 
     <script>
-        let weights = JSON.parse(localStorage.getItem('weights')) || [];
-        const ctx = document.getElementById('weightChart').getContext('2d');
-        let chart;
-        let isJin = true;  // 默认使用斤
+        const $ = document.querySelector.bind(document);
+        let records = JSON.parse(localStorage.getItem('records')) || [];
+        let height = localStorage.getItem('height');
+        let weightChart, bmiChart;
+        let isJin = true;
         let selectedPoint = null;
 
-        const kgToggle = document.getElementById('kgToggle');
-        const jinToggle = document.getElementById('jinToggle');
-        const weightInput = document.getElementById('weight');
-        const deleteButton = document.getElementById('deleteButton');
+        const updateUnitDisplay = () => {
+            $('#kgToggle').classList.toggle('active', !isJin);
+            $('#jinToggle').classList.toggle('active', isJin);
+            $('#weight').placeholder = `输入体重 (${isJin ? '斤' : 'kg'})`;
+        };
 
-        function updateUnitDisplay() {
-            kgToggle.classList.toggle('active', !isJin);
-            jinToggle.classList.toggle('active', isJin);
-            weightInput.placeholder = `输入体重 (${isJin ? '斤' : 'kg'})`;
-        }
+        const showElement = (id, show = true) => $(`#${id}`).classList.toggle('hidden', !show);
 
-        kgToggle.addEventListener('click', () => {
-            isJin = false;
-            updateUnitDisplay();
-            updateChart();
-        });
+        const calculateBMI = (weight, height) => ((weight / Math.pow(height / 100, 2))).toFixed(1);
 
-        jinToggle.addEventListener('click', () => {
-            isJin = true;
-            updateUnitDisplay();
-            updateChart();
-        });
+        const updateCharts = () => {
+            const sortedRecords = records.sort((a, b) => new Date(a.date) - new Date(b.date));
+            const labels = sortedRecords.map(entry => entry.date);
+            const weightData = sortedRecords.map(entry => isJin ? entry.weight * 2 : entry.weight);
+            const bmiData = sortedRecords.map(entry => calculateBMI(entry.weight, height));
 
-        function kgToJin(kg) {
-            return kg * 2;
-        }
+            [weightChart, bmiChart].forEach(chart => chart && chart.destroy());
 
-        function jinToKg(jin) {
-            return jin / 2;
-        }
-
-        function updateChart() {
-            const sortedWeights = weights.sort((a, b) => new Date(a.date) - new Date(b.date));
-            const labels = sortedWeights.map(entry => entry.date);
-            const data = sortedWeights.map(entry => isJin ? kgToJin(entry.weight) : entry.weight);
-
-            if (chart) {
-                chart.destroy();
-            }
-
-            chart = new Chart(ctx, {
+            const createChart = (ctx, label, data, color) => new Chart(ctx, {
                 type: 'line',
                 data: {
-                    labels: labels,
+                    labels,
                     datasets: [{
-                        label: `体重 (${isJin ? '斤' : 'kg'})`,
-                        data: data,
-                        borderColor: 'rgb(75, 192, 192)',
+                        label,
+                        data,
+                        borderColor: color,
                         tension: 0.1,
-                        pointBackgroundColor: (context) => {
-                            const index = context.dataIndex;
-                            return index === selectedPoint ? 'red' : 'rgb(75, 192, 192)';
-                        },
-                        pointRadius: (context) => {
-                            const index = context.dataIndex;
-                            return index === selectedPoint ? 8 : 5;
-                        }
+                        pointBackgroundColor: (context) => context.dataIndex === selectedPoint ? 'red' : color,
+                        pointRadius: (context) => context.dataIndex === selectedPoint ? 8 : 5
                     }]
                 },
                 options: {
                     responsive: true,
-                    scales: {
-                        y: {
-                            beginAtZero: false
-                        }
-                    },
-                    onClick: (event, elements) => {
-                        if (elements.length > 0) {
-                            const clickedIndex = elements[0].index;
-                            selectedPoint = selectedPoint === clickedIndex ? null : clickedIndex;
-                            deleteButton.style.display = selectedPoint !== null ? 'block' : 'none';
-                            chart.update();
-                        } else {
-                            selectedPoint = null;
-                            deleteButton.style.display = 'none';
-                            chart.update();
-                        }
-                    }
+                    scales: { y: { beginAtZero: false } },
+                    onClick: handleChartClick
                 }
             });
-        }
 
-        document.getElementById('weightForm').addEventListener('submit', function(e) {
-            e.preventDefault();
-            const date = document.getElementById('date').value;
-            let weight = parseFloat(document.getElementById('weight').value);
+            weightChart = createChart($('#weightChart').getContext('2d'), `体重 (${isJin ? '斤' : 'kg'})`, weightData, '#4a90e2');
+            bmiChart = createChart($('#bmiChart').getContext('2d'), 'BMI', bmiData, '#f5a623');
+        };
 
-            if (isJin) {
-                weight = jinToKg(weight);
+        const handleChartClick = (_, elements) => {
+            if (elements.length > 0) {
+                selectedPoint = selectedPoint === elements[0].index ? null : elements[0].index;
+                showElement('deleteButton', selectedPoint !== null);
+                weightChart.update();
+                bmiChart.update();
+            } else {
+                selectedPoint = null;
+                showElement('deleteButton', false);
+                weightChart.update();
+                bmiChart.update();
             }
+        };
 
-            weights.push({date, weight});
-            localStorage.setItem('weights', JSON.stringify(weights));
-            updateChart();
+        const init = () => {
+            if (height) {
+                showElement('heightSetup', false);
+                showElement('mainContent');
+                $('#currentHeight').textContent = height;
+                updateCharts();
+            } else {
+                showElement('heightSetup');
+                showElement('mainContent', false);
+            }
+        };
 
-            this.reset();
+        $('#confirmHeight').addEventListener('click', () => {
+            height = $('#initialHeight').value;
+            localStorage.setItem('height', height);
+            init();
         });
 
-        deleteButton.addEventListener('click', () => {
+        $('#editHeightBtn').addEventListener('click', () => {
+            const newHeight = prompt("请输入新的身高 (厘米):", height);
+            if (newHeight && !isNaN(newHeight)) {
+                height = newHeight;
+                localStorage.setItem('height', height);
+                $('#currentHeight').textContent = height;
+                updateCharts();
+            }
+        });
+
+        ['jinToggle', 'kgToggle'].forEach(id => 
+            $(`#${id}`).addEventListener('click', () => {
+                isJin = id === 'jinToggle';
+                updateUnitDisplay();
+                updateCharts();
+            })
+        );
+
+        $('#recordWeight').addEventListener('click', () => {
+            const date = $('#date').value;
+            let weight = parseFloat($('#weight').value);
+            if (isJin) weight /= 2;
+            records.push({date, weight});
+            localStorage.setItem('records', JSON.stringify(records));
+            updateCharts();
+            $('#date').value = '';
+            $('#weight').value = '';
+        });
+
+        $('#deleteButton').addEventListener('click', () => {
             if (selectedPoint !== null) {
-                weights.splice(selectedPoint, 1);
-                localStorage.setItem('weights', JSON.stringify(weights));
+                records.splice(selectedPoint, 1);
+                localStorage.setItem('records', JSON.stringify(records));
                 selectedPoint = null;
-                deleteButton.style.display = 'none';
-                updateChart();
+                showElement('deleteButton', false);
+                updateCharts();
             }
         });
 
         updateUnitDisplay();
-        updateChart();
+        init();
     </script>
 </body>
 </html>
