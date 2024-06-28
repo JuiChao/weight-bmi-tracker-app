@@ -5,7 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>体重和BMI追踪</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.0/chart.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@1.2.1"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/hammer.js/2.0.8/hammer.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-zoom/1.2.1/chartjs-plugin-zoom.min.js"></script>
     <style>
         :root {
             --primary-color: #4a90e2;
@@ -17,7 +18,7 @@
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             margin: 0;
-            padding: 20px;
+            padding: 10px;
             background-color: var(--background-color);
             color: var(--text-color);
         }
@@ -25,26 +26,27 @@
             max-width: 800px;
             margin: 0 auto;
             background-color: var(--card-background);
-            padding: 30px;
+            padding: 20px;
             border-radius: 12px;
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         }
         h1 {
             text-align: center;
             color: var(--primary-color);
-            margin-bottom: 30px;
+            margin-bottom: 20px;
+            font-size: 24px;
         }
         .form-group {
-            margin-bottom: 20px;
+            margin-bottom: 15px;
         }
         input, button {
             width: 100%;
-            padding: 12px;
-            margin-bottom: 10px;
+            padding: 10px;
+            margin-bottom: 8px;
             border: 1px solid #ddd;
             border-radius: 6px;
             box-sizing: border-box;
-            font-size: 16px;
+            font-size: 14px;
         }
         button {
             background-color: var(--primary-color);
@@ -57,20 +59,23 @@
             background-color: #3a7bc8;
         }
         .chart-container {
-            margin-top: 30px;
+            margin-top: 20px;
+            position: relative;
+            height: 300px;
         }
         .unit-toggle {
             display: flex;
             justify-content: center;
-            margin-bottom: 20px;
+            margin-bottom: 15px;
         }
         .unit-toggle button {
             width: auto;
-            padding: 10px 20px;
+            padding: 8px 15px;
             margin: 0 5px;
             background-color: var(--card-background);
             color: var(--primary-color);
             border: 1px solid var(--primary-color);
+            font-size: 14px;
         }
         .unit-toggle button.active {
             background-color: var(--primary-color);
@@ -78,21 +83,23 @@
         }
         #deleteButton {
             background-color: #e74c3c;
-            margin-top: 20px;
+            margin-top: 15px;
+            font-size: 14px;
         }
         #deleteButton:hover {
             background-color: #c0392b;
         }
         .bmi-range {
             text-align: center;
-            margin-top: 20px;
+            margin-top: 15px;
             font-weight: bold;
             color: var(--secondary-color);
+            font-size: 14px;
         }
         .height-display {
             text-align: center;
-            font-size: 18px;
-            margin-bottom: 20px;
+            font-size: 16px;
+            margin-bottom: 15px;
             color: var(--primary-color);
         }
         #editHeightBtn {
@@ -100,8 +107,20 @@
             padding: 5px 10px;
             background-color: var(--secondary-color);
             margin-left: 10px;
+            font-size: 12px;
         }
         .hidden { display: none; }
+        @media (max-width: 600px) {
+            .container {
+                padding: 15px;
+            }
+            h1 {
+                font-size: 20px;
+            }
+            input, button {
+                font-size: 12px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -135,9 +154,11 @@
             
             <div class="chart-container">
                 <canvas id="weightChart"></canvas>
-                <canvas id="bmiChart"></canvas>
-                <div class="bmi-range">BMI值正常范围：18.5 ~ 23.9</div>
             </div>
+            <div class="chart-container">
+                <canvas id="bmiChart"></canvas>
+            </div>
+            <div class="bmi-range">BMI值正常范围：18.5 ~ 23.9</div>
             
             <button id="deleteButton" class="hidden">删除选中的数据点</button>
         </div>
@@ -160,6 +181,22 @@
         const showElement = (id, show = true) => $(`#${id}`).classList.toggle('hidden', !show);
 
         const calculateBMI = (weight, height) => ((weight / Math.pow(height / 100, 2))).toFixed(1);
+
+        const createZoomOptions = () => ({
+            pan: {
+                enabled: true,
+                mode: 'xy',
+            },
+            zoom: {
+                wheel: {
+                    enabled: true,
+                },
+                pinch: {
+                    enabled: true
+                },
+                mode: 'xy',
+            }
+        });
 
         const updateCharts = () => {
             const sortedRecords = records.sort((a, b) => new Date(a.date) - new Date(b.date));
@@ -184,28 +221,11 @@
                 },
                 options: {
                     responsive: true,
-                    scales: { 
-                        y: { 
-                            beginAtZero: false 
-                        } 
-                    },
+                    maintainAspectRatio: false,
+                    scales: { y: { beginAtZero: false } },
                     onClick: handleChartClick,
                     plugins: {
-                        zoom: {
-                            pan: {
-                                enabled: true,
-                                mode: 'xy'
-                            },
-                            zoom: {
-                                wheel: {
-                                    enabled: true,
-                                },
-                                pinch: {
-                                    enabled: true
-                                },
-                                mode: 'xy',
-                            }
-                        }
+                        zoom: createZoomOptions()
                     }
                 }
             });
