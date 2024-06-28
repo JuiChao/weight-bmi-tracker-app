@@ -1,1 +1,1 @@
-# weight-tracker-app
+# weight-bmi-tracker-app
